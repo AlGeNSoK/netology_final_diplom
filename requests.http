@@ -1,0 +1,107 @@
+
+### Регистрация нового пользователя User1
+POST http://localhost:8000/registration/
+Content-Type: application/json
+
+{
+  "username": "user1",
+  "password": "p123456789/",
+  "email": "11@yandex.ru"
+}
+
+### Регистрация нового пользователя User2
+POST http://localhost:8000/registration/
+Content-Type: application/json
+
+{
+  "username": "user2",
+  "password": "p123456777/",
+  "email": "11@yandex.ru",
+  "first_name": "Alexey",
+  "last_name": "Sidorov"
+}
+
+###Аутентификация пользователя User2
+POST http://localhost:8000/login/
+Content-Type: application/json
+
+{
+  "username": "user2",
+  "password": "p123456777/"
+}
+
+###Выход пользователя User2
+POST http://localhost:8000/logout/
+X-Csrf-Token: Request => Cookie => csrf_token
+
+###Получение токена для пользователя User2
+POST http://localhost:8000/token/
+Content-Type: application/json
+
+{
+  "username": "user2",
+  "password": "p123456777/"
+}
+
+### Заполнение контактной информации пользователя User2
+POST http://localhost:8000/contact/
+Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Content-Type: application/json
+
+{
+  "type": "SHOP",
+  "phone": "+7-921-111-22-58",
+  "city": "Москва",
+  "street": "Лермонтова",
+  "house": "2",
+  "apartment": "56"
+}
+
+### Загрузка данных в базу
+POST http://localhost:8000/update/shop.yaml/
+Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+
+### Запрос всего перечня продуктов
+GET http://localhost:8000/products/
+
+### Запрос конкретного продукта
+GET http://localhost:8000/products/1
+
+### Запрос всего перечня магазинов
+GET http://localhost:8000/shops/
+
+### Запрос конкретного магазина
+GET http://localhost:8000/shops/1
+
+### Запрос всего перечня категорий
+GET http://localhost:8000/categories/
+
+### Запрос конкретной категории
+GET http://localhost:8000/categories/1
+
+### Запрос всего перечня заказов
+GET http://localhost:8000/orders/
+Authorization: Basic j5J8WNAGSA4HgvVGXrLdjyYwjEafzAwf
+
+### Запрос всего перечня заказов при аутентификации с помощью токена User2
+GET http://localhost:8000/orders/
+Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+
+### Запрос всего перечня заказов
+GET http://localhost:8000/orders/
+
+### Запрос конкретного заказа
+GET http://localhost:8000/orders/1
+
+### Запрос конкретного заказа
+GET http://localhost:8000/basket/
+Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Content-Type: application/json
+
+{
+  "order": 1,
+}
+
+### Запрос конкретного заказа
+GET http://localhost:8000/update/
+Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5

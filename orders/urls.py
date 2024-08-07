@@ -16,7 +16,25 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.routers import DefaultRouter
+
+from backend.views import ShopViewSet, CategoryViewSet, OrderViewSet, UserRegistrationView, LoginView, \
+    ContactView, LogoutView, BasketView, ProductViewSet, SupplierUpdate
+
+r = DefaultRouter()
+r.register('shops', ShopViewSet)
+r.register('categories', CategoryViewSet)
+r.register('products', ProductViewSet)
+r.register('orders', OrderViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-]
+    path('registration/', UserRegistrationView.as_view(), name='registration_user'),
+    path('token/', obtain_auth_token),
+    path('login/', LoginView.as_view(), name='login_user'),
+    path('logout/', LogoutView.as_view(), name='logout_user'),
+    path('contact/', ContactView.as_view(), name='contact'),
+    path('basket/', BasketView.as_view(), name='basket'),
+    path('update/<str:file_name>/', SupplierUpdate.as_view(), name='update'),
+] + r.urls
