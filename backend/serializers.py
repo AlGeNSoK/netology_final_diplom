@@ -18,41 +18,43 @@ class ContactSerializer(serializers.ModelSerializer):
 
 
 class ShopSerializer(serializers.ModelSerializer):
-    owner = ContactSerializer()
-
     class Meta:
         model = Shop
-        fields = ['id', 'name', 'url', 'owner']
+        fields = ['id', 'name', 'url', 'state']
         read_only_fields = ['id']
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'shops']
+        fields = ['id', 'name', ]
         read_only_fields = ['id']
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    category = serializers.SlugRelatedField(read_only=True, slug_field='name')
     class Meta:
         model = Product
         fields = ['id', 'name', 'category']
         read_only_fields = ['id']
 
 
-class ProductParameterSerializer(serializers.ModelSerializer):
-    parameter = serializers.PrimaryKeyRelatedField(read_only=True)
-
+class ParameterSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ProductParameter
-        fields = ['id', 'parameter', 'value']
+        model = Parameter
+        fields = ['id', 'name']
         read_only_fields = ['id']
+
+
+class ProductParameterListingFields(serializers.RelatedField):
+    def to_representation(self, value):
+        return f'{value.parameter}: {value.value}'
 
 
 class ProductInfoSerializer(serializers.ModelSerializer):
     product = ProductSerializer()
     shop = ShopSerializer()
-    product_parameters = ProductParameterSerializer(many=True)
+    product_parameters = ProductParameterListingFields(queryset=ProductParameter.objects.all(), many=True)
 
     class Meta:
         model = ProductInfo

@@ -16,7 +16,7 @@ Content-Type: application/json
 {
   "username": "user2",
   "password": "p123456777/",
-  "email": "11@yandex.ru",
+  "email": "22@yandex.ru",
   "first_name": "Alexey",
   "last_name": "Sidorov"
 }
@@ -45,7 +45,7 @@ Content-Type: application/json
 
 ### Заполнение контактной информации пользователя User2
 POST http://localhost:8000/contact/
-Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Authorization: Token aadaea7bb8ee814c16c610aef1132931bd81dec8
 Content-Type: application/json
 
 {
@@ -59,7 +59,7 @@ Content-Type: application/json
 
 ### Загрузка данных в базу
 POST http://localhost:8000/update/shop.yaml/
-Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Authorization: Token aadaea7bb8ee814c16c610aef1132931bd81dec8
 
 ### Запрос всего перечня продуктов
 GET http://localhost:8000/products/
@@ -79,13 +79,15 @@ GET http://localhost:8000/categories/
 ### Запрос конкретной категории
 GET http://localhost:8000/categories/1
 
+### Запрос всего перечня параметров
+GET http://localhost:8000/parameters/
+
+### Запрос конкретного параметра
+GET http://localhost:8000/parameters/1
+
 ### Запрос всего перечня заказов
 GET http://localhost:8000/orders/
-Authorization: Basic j5J8WNAGSA4HgvVGXrLdjyYwjEafzAwf
-
-### Запрос всего перечня заказов при аутентификации с помощью токена User2
-GET http://localhost:8000/orders/
-Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Authorization: Token aadaea7bb8ee814c16c610aef1132931bd81dec8
 
 ### Запрос всего перечня заказов
 GET http://localhost:8000/orders/
@@ -95,13 +97,10 @@ GET http://localhost:8000/orders/1
 
 ### Запрос конкретного заказа
 GET http://localhost:8000/basket/
-Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5
+Authorization: Token aadaea7bb8ee814c16c610aef1132931bd81dec8
 Content-Type: application/json
 
 {
   "order": 1,
 }
 
-### Запрос конкретного заказа
-GET http://localhost:8000/update/
-Authorization: Token a5ac67122e711bc5330956d6cb4f993f580a0bb5

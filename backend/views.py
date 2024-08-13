@@ -1,8 +1,6 @@
 from django.contrib.auth import authenticate, login, logout
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -10,8 +8,8 @@ from django.contrib.auth.models import User
 from rest_framework.response import Response
 import yaml
 from backend.models import Product, Shop, Category, Order, Contact, OrderItem, ProductInfo, Parameter, ProductParameter
-from backend.serializers import ProductSerializer, ShopSerializer, CategorySerializer, OrderSerializer, \
-    ProductInfoSerializer
+from backend.serializers import ShopSerializer, CategorySerializer, OrderSerializer, \
+    ProductInfoSerializer, ParameterSerializer
 
 
 class UserRegistrationView(APIView):
@@ -84,6 +82,12 @@ class ProductViewSet(ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['product', 'model', 'product_parameters', 'shop']
     search_fields = ['product', 'model', 'product_parameters', 'shop', 'quantity', 'price', 'price_rrc']
+
+
+class ParameterViewSet(ModelViewSet):
+    queryset = Parameter.objects.all()
+    serializer_class = ParameterSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
 
 class OrderViewSet(ModelViewSet):
