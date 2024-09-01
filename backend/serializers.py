@@ -24,6 +24,12 @@ class ShopSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class ShopOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Shop
+        fields = ['name', 'url']
+
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
@@ -37,6 +43,12 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['id', 'name', 'category']
         read_only_fields = ['id']
+
+
+class ProductOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['name']
 
 
 class ParameterSerializer(serializers.ModelSerializer):
@@ -61,15 +73,37 @@ class ProductInfoSerializer(serializers.ModelSerializer):
         fields = ['product', 'model', 'product_parameters', 'quantity', 'price', 'price_rrc', 'shop']
 
 
-class OrderSerializer(serializers.ModelSerializer):
+class ProductInfoOrderSerializer(serializers.ModelSerializer):
+    product = ProductOrderSerializer()
+
     class Meta:
-        model = Order
-        fields = ['id', 'user', 'dt', 'status']
-        read_only_fields = ['id']
+        model = ProductInfo
+        fields = ['id', 'product', 'price_rrc']
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    product_info = ProductInfoOrderSerializer()
+    shop = ShopOrderSerializer()
+
     class Meta:
         model = OrderItem
-        fields = ['id', 'order', 'product', 'shop', 'quantity']
-        read_only_fields = ['id']
+        fields = ['product_info', 'quantity', 'shop']
+        read_only_fields = ['shop']
+
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    order_items = OrderItemSerializer(many=True)
+    total_sum = serializers.IntegerField()
+    class Meta:
+        model = Order
+        fields = ('id', 'order_items', 'status', 'dt', 'total_sum')
+        read_only_fields = ('id',)
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    total_sum = serializers.IntegerField()
+
+    class Meta:
+        model = Order
+        fields = ('id', 'status', 'dt', 'total_sum')
+        read_only_fields = ('id',)

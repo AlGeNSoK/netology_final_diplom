@@ -19,8 +19,9 @@ from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
-from backend.views import ShopViewSet, CategoryViewSet, OrderViewSet, UserRegistrationView, LoginView, \
-    ContactView, LogoutView, BasketView, ProductViewSet, SupplierUpdate, ParameterViewSet
+from backend.views import ShopViewSet, CategoryViewSet, UserRegistrationView, LoginView, \
+    ContactView, LogoutView, BasketView, ProductViewSet, SupplierUpdate, ParameterViewSet, OrderViewSet, \
+    CreatingOrderView, ConfirmOrderView
 
 r = DefaultRouter()
 r.register('shops', ShopViewSet)
@@ -37,5 +38,7 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout_user'),
     path('contact/', ContactView.as_view(), name='contact'),
     path('basket/', BasketView.as_view(), name='basket'),
+    path('new_order/', CreatingOrderView.as_view(), name='new_order'),
+    path('confirm_order/<int:order_id>/', ConfirmOrderView.as_view(), name='confirm_order'),
     path('update/<str:file_name>/', SupplierUpdate.as_view(), name='update'),
 ] + r.urls

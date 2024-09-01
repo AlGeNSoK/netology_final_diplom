@@ -1,4 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
+from django.core.exceptions import ObjectDoesNotExist
+from django.db.utils import IntegrityError
+from django.db.models import Sum, F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -9,19 +12,41 @@ from rest_framework.response import Response
 import yaml
 from backend.models import Product, Shop, Category, Order, Contact, OrderItem, ProductInfo, Parameter, ProductParameter
 from backend.serializers import ShopSerializer, CategorySerializer, OrderSerializer, \
-    ProductInfoSerializer, ParameterSerializer
+    ProductInfoSerializer, ParameterSerializer, OrderDetailSerializer, ContactSerializer, OrderItemSerializer, \
+    UserSerializer
+from backend.tasks import send_email_order_confirm, send_email_registration
 
 
 class UserRegistrationView(APIView):
-    """
-        Регистрация нового пользователя
-    """
 
     def post(self, request):
-        user = User.objects.create(**request.data)
-        user.set_password(request.data.get('password'))
-        user.save()
-        return Response({'id': user.id})
+        """
+            Регистрация нового пользователя
+        """
+
+        try:
+            user = User.objects.create(**request.data)
+            serializer = UserSerializer(user, data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user.set_password(request.data.get('password'))
+            serializer.save()
+        except IntegrityError:
+            return Response({'status': 'Пользователь с таким именем уже существует'})
+
+        if user.email is not None:
+            send_email_registration(user.id)
+        return Response({'status': 'Пользователь создан успешно'})
+
+    def patch(self, request):
+        """
+            Изменение данных пользователя
+        """
+        if not request.user.is_authenticated:
+            return Response({'status': 'Аутентификация не пройдена'})
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'Пользователь изменен'})
 
 
 class LoginView(APIView):
@@ -60,6 +85,29 @@ class ContactView(APIView):
         contact.save()
         return Response({'status': 'Контактная информация заполнена'})
 
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({'status': 'Аутентификация не пройдена'})
+        contact = Contact.objects.get(user=request.user)
+        serializer = ContactSerializer(contact)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        if not request.user.is_authenticated:
+            return Response({'status': 'Аутентификация не пройдена'})
+        contact = Contact.objects.get(user=request.user)
+        serializer = ContactSerializer(contact, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'Контактная информация изменена'})
+
+    def delete(self, request):
+        if not request.user.is_authenticated:
+            return Response({'status': 'Аутентификация не пройдена'})
+        contact = Contact.objects.get(user=request.user)
+        contact.delete()
+        return Response({'status': 'Контактная информация удалена'})
+
 
 class ShopViewSet(ModelViewSet):
     queryset = Shop.objects.all()
@@ -90,109 +138,76 @@ class ParameterViewSet(ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
 
-class OrderViewSet(ModelViewSet):
-    """
-        Создание, просмотр и удаление заказов
-    """
-    queryset = Order.objects.all()
-    serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
-    filterset_fields = ['status']
-
-    def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
-
-
-# class NewOrderView(APIView):
-#     """
-#         Создание нового заказа
-#     """
-#
-#     permission_classes = [IsAuthenticated]
-#     def post(self, request):
-#         order = Order.objects.create(user=request.user, status=Order.OrderStatusChoices.BASKET)
-#         order.save()
-#         return Response({'status': 'Заказ создан'})
-
-
 class BasketView(APIView):
     """
-        Редактирование (добавление и удаление товаров) заказа на стадии корзина
+        Добавление и удаление товаров из корзины
     """
 
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        """
-            Добавление товара в корзину
-        """
-        order = Order.objects.get(id=request.data.get('order')).id
-        if order:
-            if order.user == request.user.id:
-                if order.status == Order.OrderStatusChoices.BASKET:
-                    product = Product.objects.get(id=request.data.get('product')).id
-                    quantity = request.data.get('quantity')
-                    shop = ProductInfo.objects.get(id=product).shop
-                    order_item = OrderItem.objects.create(order=order, product=product, shop=shop, quantity=quantity)
-                    order_item.save()
-                    return Response({'status': 'Товар добавлен в корзину'})
-                else:
-                    return Response({'status': False, 'message': 'Заказ уже был оформлен'})
-            else:
-                return Response({'status': False, 'message': 'Заказ принадлежит другому пользователю'})
-        else:
-            return Response({'status': False, 'message': 'В запросе не указан заказ'})
+    def put(self, request):
+        """ Добавление товара в корзину """
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только покупатели могут добавлять товары в корзину'})
+
+        basket, _ = Order.objects.get_or_create(user=request.user, status='BASKET')
+        product = Product.objects.get(id=request.data.get('product_id'))
+        shop = ProductInfo.objects.get(id=product.id).shop
+        product_info = ProductInfo.objects.get(product=product)
+        quantity = request.data.get('quantity')
+
+        OrderItem.objects.create(order=basket, product_info=product_info, shop=shop, quantity=quantity)
+        return Response({'status': 'Товар добавлен в корзину'})
 
     def get(self, request):
-        """
-            Просмотр содержимого корзины
-        """
-        order = Order.objects.get(id=request.data.get('order')).id
-        if order.user == request.user:
-            order_item = OrderItem.objects.filter(order__user=request.user,
-                                                  order__status=Order.OrderStatusChoices.BASKET)
-            order_item_list = []
-            for element in order_item:
-                new_element = {'id': element.id, 'product': element.product,
-                               'shop': element.shop, 'price': element.product.price,
-                               'quantity': element.quantity, 'sum': element.product.price * element.quantity}
-                order_item_list.append(new_element)
-            order_product = {'Order': order, 'Product_list': order_item_list}
-            return Response(order_product)
-        else:
-            return Response({'status': False, 'message': 'Заказ принадлежит другому пользователю'})
+        """ Просмотр содержимого корзины """
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только для покупателей!'})
+
+        basket = Order.objects.filter(
+            user_id=request.user.id, status='BASKET').prefetch_related(
+            'order_items__product_info__product__category',
+            'order_items__product_info__product_parameters__parameter').annotate(
+            total_sum=Sum(F('order_items__quantity') * F('order_items__product_info__price_rrc'))).distinct()
+        serializer = OrderDetailSerializer(basket, many=True)
+        return Response(serializer.data)
 
     def patch(self, request):
         """
             Изменение количества товара в корзине
         """
-        if request.data.get('quantity'):
-            order = Order.objects.get(id=request.data.get('order')).id
-            if order.user == request.user:
-                order_item = OrderItem.objects.get(id=request.data.get('order_item'),
-                                                   order__id=order,
-                                                   order__status=Order.OrderStatusChoices.BASKET)
-                order_item.quantity = request.data.get('quantity')
-                order_item.update()
-                return Response({'status': 'Товар удален из корзины'})
-            else:
-                return Response({'status': False, 'message': 'Заказ принадлежит другому пользователю'})
-        else:
-            return Response({'status': False, 'message': 'Не указано количество'})
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только для покупателей!'})
+
+        try:
+            order_item = OrderItem.objects.get(order__user=request.user, order__status='BASKET',
+                                               product_info__product=request.data.get('product_id'))
+            serializer = OrderItemSerializer(order_item, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response({'status': 'Количество товара изменено'})
+        except ObjectDoesNotExist:
+            return Response({'status': 'Указанный товар отсутствует в корзине'}, status=404)
 
     def delete(self, request):
         """
             Удаление товара из корзины
         """
-        order = Order.objects.get(id=request.data.get('order')).id
-        if order.user == request.user:
-            order_item = OrderItem.objects.get(id=request.data.get('order_item'),
-                                               order__id=order,
-                                               order__status=Order.OrderStatusChoices.BASKET)
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только для покупателей!'})
+
+        try:
+            order_item = OrderItem.objects.get(order__user=request.user, order__status='BASKET',
+                                               product_info__product=request.data.get('product_id'))
             order_item.delete()
             return Response({'status': 'Товар удален из корзины'})
-        else:
-            return Response({'status': False, 'message': 'Заказ принадлежит другому пользователю'})
+        except ObjectDoesNotExist:
+            return Response({'status': 'Указанный товар отсутствует в корзине'}, status=404)
+
 
 
 class SupplierUpdate(APIView):
@@ -225,3 +240,72 @@ class SupplierUpdate(APIView):
                                                     parameter_id=parameter_object.id,
                                                     value=value)
         return Response({'status': 'products added successfully'})
+
+
+class OrderViewSet(ModelViewSet):
+    """
+        Просмотр информации о заказах
+    """
+    queryset = Order.objects.annotate(
+        total_sum=Sum(F('order_items__quantity') * F('order_items__product_info__price_rrc')))
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    detail_serializer_class = OrderDetailSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == 'list':
+            return queryset.filter(user=self.request.user).exclude(status='BASKET').prefetch_related(
+                'order_items__product_info').all()
+        elif self.action == 'retrieve':
+            return queryset.filter(user=self.request.user).exclude(status='BASKET').prefetch_related(
+                'order_items__product_info').all()
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            if hasattr(self, 'detail_serializer_class'):
+                return self.detail_serializer_class
+        return super(OrderViewSet, self).get_serializer_class()
+
+
+class CreatingOrderView(APIView):
+    """
+        Создание нового заказа
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только для покупателей!'})
+
+        try:
+            order = Order.objects.get(user=request.user, status='BASKET')
+        except Order.DoesNotExist:
+            return Response({'status': 'У пользователя отсутствует товары в корзине'})
+
+        order.status = 'NEW'
+        order.save()
+        return Response({'status': 'Заказ создан'})
+
+
+class ConfirmOrderView(APIView):
+    """
+        Подтверждение заказа
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+
+        if request.user.contact.type != 'BUYER':
+            return Response({'status': 'Только для покупателей!'})
+
+        try:
+            order = Order.objects.get(id=order_id, user=request.user, status='NEW')
+        except Order.DoesNotExist:
+            return Response({'status': 'У пользователя отсутствуют новые неподтвержденные заказы'})
+
+        order.status = 'CONFIRMED'
+        order.save()
+        send_email_order_confirm(order.user.id)
+        return Response({'status': 'Заказ подтвержден'})

@@ -122,15 +122,12 @@ class Order(models.Model):
     def __str__(self):
         return str(f'Заказ No{self.pk} от {self.dt} для {self.user}')
 
-    # def total_quantity(self):
-    #     return self.order_items.aggregate(Sum('quantity'))['quantity__sum']
-
 
 class OrderItem(models.Model):
     """
         Модель элемента заказа
     """
     order = models.ForeignKey(Order, related_name='order_items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, related_name='order_items', on_delete=models.CASCADE)
+    product_info = models.ForeignKey(ProductInfo, related_name='order_items', on_delete=models.CASCADE, null=True)
     shop = models.ForeignKey(Shop, related_name='order_items', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
